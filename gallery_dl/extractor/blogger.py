@@ -42,7 +42,7 @@ class BloggerExtractor(Extractor):
         blog["date"] = text.parse_datetime(blog["published"])
         del blog["selfLink"]
 
-        sub = re.compile(r"/s\d+/").sub
+        sub = re.compile(r"/(?:s\d+|w\d+-h\d+)/").sub
         findall_image = re.compile(
             r'src="(https?://\d+\.bp\.blogspot\.com/[^"]+)').findall
         findall_video = re.compile(
@@ -92,7 +92,7 @@ class BloggerExtractor(Extractor):
 class BloggerPostExtractor(BloggerExtractor):
     """Extractor for a single blog post"""
     subcategory = "post"
-    pattern = BASE_PATTERN + r"(/\d{4}/\d\d/[^/?&#]+\.html)"
+    pattern = BASE_PATTERN + r"(/\d{4}/\d\d/[^/?#]+\.html)"
     test = (
         ("https://julianbphotography.blogspot.com/2010/12/moon-rise.html", {
             "url": "9928429fb62f712eb4de80f53625eccecc614aae",
@@ -134,6 +134,10 @@ class BloggerPostExtractor(BloggerExtractor):
           "cfnm-scene-jenna-fischer-in-office.html"), {
             "pattern": r"https://.+\.googlevideo\.com/videoplayback",
         }),
+        # image URLs with width/height (#1061)
+        ("https://aaaninja.blogspot.com/2020/08/altera-boob-press-2.html", {
+            "pattern": r"https://1.bp.blogspot.com/.+/s0/altera_.+png",
+        }),
     )
 
     def __init__(self, match):
@@ -167,7 +171,7 @@ class BloggerBlogExtractor(BloggerExtractor):
 class BloggerSearchExtractor(BloggerExtractor):
     """Extractor for search resuls and labels"""
     subcategory = "search"
-    pattern = BASE_PATTERN + r"/search(?:/?\?q=([^/?&#]+)|/label/([^/?&#]+))"
+    pattern = BASE_PATTERN + r"/search(?:/?\?q=([^/?#]+)|/label/([^/?#]+))"
     test = (
         ("https://julianbphotography.blogspot.com/search?q=400mm", {
             "count": "< 10"

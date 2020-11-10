@@ -59,7 +59,6 @@ modules = [
     "kabeuchi",
     "keenspot",
     "khinsider",
-    "kissmanga",
     "komikcast",
     "konachan",
     "lineblog",
@@ -185,6 +184,8 @@ def _list_classes():
     for module_name in _module_iter:
         module = importlib.import_module("."+module_name, __package__)
         yield from add_module(module)
+
+    globals()["_list_classes"] = lambda : _cache
 
 
 def _get_classes(module):

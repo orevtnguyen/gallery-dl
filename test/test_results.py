@@ -22,19 +22,16 @@ from gallery_dl import extractor, util, job, config, exception  # noqa E402
 
 # these don't work on Travis CI
 TRAVIS_SKIP = {
-    "exhentai", "kissmanga", "mangafox", "dynastyscans", "nijie", "bobx",
+    "exhentai", "mangafox", "dynastyscans", "nijie", "instagram", "ngomik",
     "archivedmoe", "archiveofsins", "thebarchive", "fireden", "4plebs",
-    "sankaku", "idolcomplex", "mangahere", "readcomiconline", "mangadex",
-    "sankakucomplex", "warosu", "fuskator", "patreon", "komikcast",
-    "instagram", "ngomik",
+    "sankaku", "idolcomplex", "mangahere", "mangadex", "sankakucomplex",
+    "warosu", "fuskator", "patreon", "komikcast", "twitter",
 }
 
 # temporary issues, etc.
 BROKEN = {
-    "8kun",
-    "dynastyscans",
-    "fallenangels",
     "imagevenue",
+    "mangapanda",
     "photobucket",
 }
 
@@ -299,6 +296,7 @@ class TestFormatter(util.Formatter):
 def setup_test_config():
     name = "gallerydl"
     email = "gallerydl@openaliasbox.org"
+    email2 = "gallerydl@protonmail.com"
 
     config.clear()
     config.set(("cache",), "file", None)
@@ -310,6 +308,7 @@ def setup_test_config():
 
     config.set(("extractor", "nijie")     , "username", email)
     config.set(("extractor", "seiga")     , "username", email)
+    config.set(("extractor", "pinterest") , "username", email2)
 
     config.set(("extractor", "newgrounds"), "username", "d1618111")
     config.set(("extractor", "newgrounds"), "password", "d1618111")

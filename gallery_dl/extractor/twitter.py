@@ -9,10 +9,8 @@
 """Extractors for https://twitter.com/"""
 
 from .common import Extractor, Message
-from .. import text, exception
+from .. import text, util, exception
 from ..cache import cache
-import hashlib
-import time
 
 
 BASE_PATTERN = (
@@ -29,7 +27,6 @@ class TwitterExtractor(Extractor):
     archive_fmt = "{tweet_id}_{retweet_id}_{num}"
     cookiedomain = ".twitter.com"
     root = "https://twitter.com"
-    sizes = (":orig", ":large", ":medium", ":small")
 
     def __init__(self, match):
         Extractor.__init__(self, match)
@@ -39,6 +36,7 @@ class TwitterExtractor(Extractor):
         self.twitpic = self.config("twitpic", False)
         self.quoted = self.config("quoted", True)
         self.videos = self.config("videos", True)
+        self.cards = self.config("cards", False)
         self._user_cache = {}
 
     def items(self):
@@ -58,56 +56,82 @@ class TwitterExtractor(Extractor):
                 self.log.debug("Skipping %s (quoted tweet)", tweet["id_str"])
                 continue
 
+            files = []
+            if "extended_entities" in tweet:
+                self._extract_media(tweet, files)
+            if "card" in tweet and self.cards:
+                self._extract_card(tweet, files)
             if self.twitpic:
-                self._extract_twitpic(tweet)
-            if "extended_entities" not in tweet:
+                self._extract_twitpic(tweet, files)
+            if not files:
                 continue
 
             tdata = self._transform_tweet(tweet)
             tdata.update(metadata)
-
             yield Message.Directory, tdata
-            for tdata["num"], media in enumerate(
-                    tweet["extended_entities"]["media"], 1):
+            for tdata["num"], file in enumerate(files, 1):
+                file.update(tdata)
+                url = file.pop("url")
+                if "extension" not in file:
+                    text.nameext_from_url(url, file)
+                yield Message.Url, url, file
 
-                tdata["width"] = media["original_info"].get("width", 0)
-                tdata["height"] = media["original_info"].get("height", 0)
+    def _extract_media(self, tweet, files):
+        for media in tweet["extended_entities"]["media"]:
+            width = media["original_info"].get("width", 0)
+            height = media["original_info"].get("height", 0)
 
-                if "video_info" in media:
+            if "video_info" in media:
+                if self.videos == "ytdl":
+                    files.append({
+                        "url": "ytdl:{}/i/web/status/{}".format(
+                            self.root, tweet["id_str"]),
+                        "width"    : width,
+                        "height"   : height,
+                        "extension": None,
+                    })
+                elif self.videos:
+                    video_info = media["video_info"]
+                    variant = max(
+                        video_info["variants"],
+                        key=lambda v: v.get("bitrate", 0),
+                    )
+                    files.append({
+                        "url"     : variant["url"],
+                        "width"   : width,
+                        "height"  : height,
+                        "bitrate" : variant.get("bitrate", 0),
+                        "duration": video_info.get(
+                            "duration_millis", 0) / 1000,
+                    })
+            elif "media_url_https" in media:
+                url = media["media_url_https"]
+                files.append(text.nameext_from_url(url, {
+                    "url"      : url + ":orig",
+                    "_fallback": [url+":large", url+":medium", url+":small"],
+                    "width"    : width,
+                    "height"   : height,
+                }))
+            else:
+                files.append({"url": media["media_url"]})
 
-                    if self.videos == "ytdl":
-                        url = "ytdl:{}/i/web/status/{}".format(
-                            self.root, tweet["id_str"])
-                        tdata["extension"] = None
-                        yield Message.Url, url, tdata
+    def _extract_card(self, tweet, files):
+        card = tweet["card"]
+        if card["name"] in ("summary", "summary_large_image"):
+            bvals = card["binding_values"]
+            for prefix in ("photo_image_full_size_",
+                           "summary_photo_image_",
+                           "thumbnail_image_"):
+                for size in ("original", "x_large", "large", "small"):
+                    key = prefix + size
+                    if key in bvals:
+                        files.append(bvals[key]["image_value"])
+                        return
+        else:
+            url = "ytdl:{}/i/web/status/{}".format(self.root, tweet["id_str"])
+            files.append({"url": url})
 
-                    elif self.videos:
-                        video_info = media["video_info"]
-                        variant = max(
-                            video_info["variants"],
-                            key=lambda v: v.get("bitrate", 0),
-                        )
-                        tdata["duration"] = video_info.get(
-                            "duration_millis", 0) / 1000
-                        tdata["bitrate"] = variant.get("bitrate", 0)
-
-                        url = variant["url"]
-                        text.nameext_from_url(url, tdata)
-                        yield Message.Url, url, tdata
-
-                elif "media_url_https" in media:
-                    url = media["media_url_https"]
-                    urls = [url + size for size in self.sizes]
-                    text.nameext_from_url(url, tdata)
-                    yield Message.Urllist, urls, tdata
-
-                else:
-                    url = media["media_url"]
-                    text.nameext_from_url(url, tdata)
-                    yield Message.Url, url, tdata
-
-    def _extract_twitpic(self, tweet):
-        twitpics = []
+    def _extract_twitpic(self, tweet, files):
         for url in tweet["entities"].get("urls", ()):
             url = url["expanded_url"]
             if "//twitpic.com/" in url and "/photos/" not in url:
@@ -117,15 +141,7 @@ class TwitterExtractor(Extractor):
                 url = text.extract(
                     response.text, 'name="twitter:image" value="', '"')[0]
                 if url:
-                    twitpics.append({
-                        "original_info": {},
-                        "media_url"    : url,
-                    })
-        if twitpics:
-            if "extended_entities" in tweet:
-                tweet["extended_entities"]["media"].extend(twitpics)
-            else:
-                tweet["extended_entities"] = {"media": twitpics}
+                    files.append({"url": url})
 
     def _transform_tweet(self, tweet):
         entities = tweet["entities"]
@@ -247,7 +263,7 @@ class TwitterTimelineExtractor(TwitterExtractor):
     """Extractor for all images from a user's timeline"""
     subcategory = "timeline"
     pattern = BASE_PATTERN + \
-        r"/(?!search)(?:([^/?&#]+)/?(?:$|[?#])|intent/user\?user_id=(\d+))"
+        r"/(?!search)(?:([^/?#]+)/?(?:$|[?#])|intent/user\?user_id=(\d+))"
     test = (
         ("https://twitter.com/supernaturepics", {
             "range": "1-40",
@@ -271,7 +287,7 @@ class TwitterTimelineExtractor(TwitterExtractor):
 class TwitterMediaExtractor(TwitterExtractor):
     """Extractor for all images from a user's Media Tweets"""
     subcategory = "media"
-    pattern = BASE_PATTERN + r"/(?!search)([^/?&#]+)/media(?!\w)"
+    pattern = BASE_PATTERN + r"/(?!search)([^/?#]+)/media(?!\w)"
     test = (
         ("https://twitter.com/supernaturepics/media", {
             "range": "1-40",
@@ -288,7 +304,7 @@ class TwitterMediaExtractor(TwitterExtractor):
 class TwitterLikesExtractor(TwitterExtractor):
     """Extractor for liked tweets"""
     subcategory = "likes"
-    pattern = BASE_PATTERN + r"/(?!search)([^/?&#]+)/likes(?!\w)"
+    pattern = BASE_PATTERN + r"/(?!search)([^/?#]+)/likes(?!\w)"
     test = ("https://twitter.com/supernaturepics/likes",)
 
     def tweets(self):
@@ -305,6 +321,20 @@ class TwitterBookmarkExtractor(TwitterExtractor):
         return TwitterAPI(self).timeline_bookmark()
 
 
+class TwitterListExtractor(TwitterExtractor):
+    """Extractor for Twitter lists"""
+    subcategory = "list"
+    pattern = BASE_PATTERN + r"/i/lists/(\d+)"
+    test = ("https://twitter.com/i/lists/784214683683127296", {
+        "range": "1-40",
+        "count": 40,
+        "archive": False,
+    })
+
+    def tweets(self):
+        return TwitterAPI(self).timeline_list(self.user)
+
+
 class TwitterSearchExtractor(TwitterExtractor):
     """Extractor for all images from a search timeline"""
     subcategory = "search"
@@ -313,6 +343,7 @@ class TwitterSearchExtractor(TwitterExtractor):
     test = ("https://twitter.com/search?q=nature", {
         "range": "1-40",
         "count": 40,
+        "archive": False,
     })
 
     def metadata(self):
@@ -325,7 +356,7 @@ class TwitterSearchExtractor(TwitterExtractor):
 class TwitterTweetExtractor(TwitterExtractor):
     """Extractor for images from individual tweets"""
     subcategory = "tweet"
-    pattern = BASE_PATTERN + r"/([^/?&#]+|i/web)/status/(\d+)"
+    pattern = BASE_PATTERN + r"/([^/?#]+|i/web)/status/(\d+)"
     test = (
         ("https://twitter.com/supernaturepics/status/604341487988576256", {
             "url": "0e801d2f98142dd87c3630ded9e4be4a4d63b580",
@@ -374,10 +405,15 @@ class TwitterTweetExtractor(TwitterExtractor):
             "pattern": r"https://\w+.cloudfront.net/photos/large/\d+.jpg",
             "count": 3,
         }),
-        # Nitter tweet
+        # Nitter tweet (#890)
         ("https://nitter.net/ed1conf/status/1163841619336007680", {
             "url": "0f6a841e23948e4320af7ae41125e0c5b3cadc98",
             "content": "f29501e44d88437fe460f5c927b7543fda0f6e34",
+        }),
+        # Twitter card (#1005)
+        ("https://twitter.com/billboard/status/1306599586602135555", {
+            "options": (("cards", True),),
+            "pattern": r"https://pbs.twimg.com/card_img/\d+/",
         }),
         # original retweets (#1026)
         ("https://twitter.com/jessica_3978/status/1296304589591810048", {
@@ -445,7 +481,7 @@ class TwitterAPI():
         cookies = self.extractor.session.cookies
 
         # CSRF
-        csrf = hashlib.md5(str(time.time()).encode()).hexdigest()
+        csrf = util.generate_csrf_token()
         self.headers["x-csrf-token"] = csrf
         cookies.set("ct0", csrf, domain=".twitter.com")
 
@@ -489,6 +525,13 @@ class TwitterAPI():
         endpoint = "2/timeline/bookmark.json"
         return self._pagination(endpoint)
 
+    def timeline_list(self, list_id):
+        endpoint = "2/timeline/list.json"
+        params = self.params.copy()
+        params["list_id"] = list_id
+        params["ranking_mode"] = "reverse_chronological"
+        return self._pagination(endpoint, params)
+
     def search(self, query):
         endpoint = "2/search/adaptive.json"
         params = self.params.copy()
@@ -500,12 +543,19 @@ class TwitterAPI():
         return self._pagination(
             endpoint, params, "sq-I-t-", "sq-cursor-bottom")
 
+    def list_by_rest_id(self, list_id):
+        endpoint = "graphql/LXXTUytSX1QY-2p8Xp9BFA/ListByRestId"
+        params = {"variables": '{"listId":"' + list_id + '"'
+                               ',"withUserResult":false}'}
+        try:
+            return self._call(endpoint, params)["data"]["list"]
+        except KeyError:
+            raise exception.NotFoundError("list")
+
     def user_by_screen_name(self, screen_name):
-        endpoint = "graphql/-xfUfZsnR_zqjFd-IfrN5A/UserByScreenName"
-        params = {
-            "variables": '{"screen_name":"' + screen_name + '"'
-                         ',"withHighlightedLabel":true}'
-        }
+        endpoint = "graphql/jMaTS-_Ea8vh9rpKggJbCQ/UserByScreenName"
+        params = {"variables": '{"screen_name":"' + screen_name + '"'
+                               ',"withHighlightedLabel":true}'}
         try:
             return self._call(endpoint, params)["data"]["user"]
         except KeyError:

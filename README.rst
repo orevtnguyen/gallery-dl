@@ -83,8 +83,8 @@ Download a standalone executable file,
 put it into your `PATH <https://en.wikipedia.org/wiki/PATH_(variable)>`__,
 and run it inside a command prompt (like ``cmd.exe``).
 
-- `Windows <https://github.com/mikf/gallery-dl/releases/download/v1.15.0/gallery-dl.exe>`__
-- `Linux   <https://github.com/mikf/gallery-dl/releases/download/v1.15.0/gallery-dl.bin>`__
+- `Windows <https://github.com/mikf/gallery-dl/releases/download/v1.15.2/gallery-dl.exe>`__
+- `Linux   <https://github.com/mikf/gallery-dl/releases/download/v1.15.2/gallery-dl.bin>`__
 
 These executables include a Python 3.8 interpreter
 and all required Python packages.
@@ -108,6 +108,14 @@ Windows users that have Chocolatey_ installed can install *gallery-dl* from the 
 
     $ choco install gallery-dl
 
+Scoop
+----------
+
+Apart from Chocolatey, *gallery-dl* is also available in Scoop_ "main" bucket for Windows users.
+
+.. code:: powershell
+
+    $ scoop install gallery-dl
 
 Usage
 =====
@@ -206,8 +214,8 @@ a username & password pair. This is necessary for
 ``pixiv``, ``nijie``, and ``seiga``
 and optional for
 ``aryion``, ``danbooru``, ``e621``, ``exhentai``, ``idolcomplex``, ``inkbunny``,
-``instagram``, ``luscious``, ``sankaku``, ``subscribestar``, ``tsumino``,
-and ``twitter``.
+``instagram``, ``luscious``, ``pinterest``,  ``sankaku``, ``subscribestar``,
+``tsumino``, and ``twitter``.
 
 You can set the necessary information in your configuration file
 (cf. gallery-dl.conf_)
@@ -300,7 +308,7 @@ access to *gallery-dl*. Authorize it and you will be shown one or more
 .. _gallery-dl-example.conf: https://github.com/mikf/gallery-dl/blob/master/docs/gallery-dl-example.conf
 .. _configuration.rst:       https://github.com/mikf/gallery-dl/blob/master/docs/configuration.rst
 .. _Supported Sites:         https://github.com/mikf/gallery-dl/blob/master/docs/supportedsites.rst
-.. _stable:                  https://github.com/mikf/gallery-dl/archive/v1.15.0.tar.gz
+.. _stable:                  https://github.com/mikf/gallery-dl/archive/v1.15.2.tar.gz
 .. _dev:                     https://github.com/mikf/gallery-dl/archive/master.tar.gz
 
 .. _Python:     https://www.python.org/downloads/
@@ -313,6 +321,7 @@ access to *gallery-dl*. Authorize it and you will be shown one or more
 .. _Snapd:      https://docs.snapcraft.io/installing-snapd
 .. _OAuth:      https://en.wikipedia.org/wiki/OAuth
 .. _Chocolatey: https://chocolatey.org/install
+.. _Scoop:      https://scoop.sh
 
 .. |pypi| image:: https://img.shields.io/pypi/v/gallery-dl.svg
     :target: https://pypi.org/project/gallery-dl/

@@ -56,7 +56,7 @@ class GfycatUserExtractor(GfycatExtractor):
     """Extractor for gfycat user profiles"""
     subcategory = "user"
     directory_fmt = ("{category}", "{userName}")
-    pattern = r"(?:https?://)?gfycat\.com/@([^/?&#]+)"
+    pattern = r"(?:https?://)?gfycat\.com/@([^/?#]+)"
     test = ("https://gfycat.com/@gretta", {
         "pattern": r"https://giant\.gfycat\.com/[A-Za-z]+\.mp4",
         "count": ">= 100",
@@ -70,7 +70,7 @@ class GfycatSearchExtractor(GfycatExtractor):
     """Extractor for gfycat search results"""
     subcategory = "search"
     directory_fmt = ("{category}", "Search", "{search}")
-    pattern = r"(?:https?://)?gfycat\.com/gifs/search/([^/?&#]+)"
+    pattern = r"(?:https?://)?gfycat\.com/gifs/search/([^/?#]+)"
     test = ("https://gfycat.com/gifs/search/funny+animals", {
         "pattern": r"https://\w+\.gfycat\.com/[A-Za-z]+\.mp4",
         "archive": False,
@@ -100,13 +100,13 @@ class GfycatImageExtractor(GfycatExtractor):
                 "gfyName": "GrayGenerousCowrie",
                 "gfyNumber": "755075459",
                 "title": "Bottom's up",
-                "userName": "jackson3oh3",
+                "username": "jackson3oh3",
                 "createDate": 1495884169,
                 "md5": "a4796e05b0db9ba9ce5140145cd318aa",
                 "width": 400,
                 "height": 224,
-                "frameRate": 23,
-                "numFrames": 158,
+                "frameRate": 23.0,
+                "numFrames": 158.0,
                 "views": int,
             },
         }),

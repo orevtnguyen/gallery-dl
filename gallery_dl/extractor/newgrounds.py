@@ -19,8 +19,8 @@ class NewgroundsExtractor(Extractor):
     """Base class for newgrounds extractors"""
     category = "newgrounds"
     directory_fmt = ("{category}", "{artist[:10]:J, }")
-    filename_fmt = "{category}_{index}_{title}.{extension}"
-    archive_fmt = "{index}"
+    filename_fmt = "{category}_{_index}_{title}.{extension}"
+    archive_fmt = "{_index}"
     root = "https://www.newgrounds.com"
     cookiedomain = ".newgrounds.com"
     cookienames = ("NG_GG_username", "vmk1du5I8m")
@@ -39,11 +39,19 @@ class NewgroundsExtractor(Extractor):
                 post = self.extract_post(post_url)
                 url = post.get("url")
             except Exception:
+                self.log.debug("", exc_info=True)
                 url = None
 
             if url:
                 yield Message.Directory, post
                 yield Message.Url, url, text.nameext_from_url(url, post)
+
+                for num, url in enumerate(text.extract_iter(
+                        post["_comment"], 'data-smartload-src="', '"'), 1):
+                    post["num"] = num
+                    post["_index"] = "{}_{:>02}".format(post["index"], num)
+                    url = text.ensure_http_scheme(url)
+                    yield Message.Url, url, text.nameext_from_url(url, post)
             else:
                 self.log.warning(
                     "Unable to get download URL for '%s'", post_url)
@@ -97,8 +105,9 @@ class NewgroundsExtractor(Extractor):
         else:
             data = self._extract_media_data(extr, post_url)
 
-        data["comment"] = text.unescape(text.remove_html(extr(
-            'id="author_comments"', '</div>').partition(">")[2], "", ""))
+        data["_comment"] = extr('id="author_comments"', '</div>')
+        data["comment"] = text.unescape(text.remove_html(
+            data["_comment"].partition(">")[2], "", ""))
         data["favorites"] = text.parse_int(extr(
             'id="faves_load">', '<').replace(",", ""))
         data["score"] = text.parse_float(extr('id="score_number">', '<'))
@@ -125,19 +134,22 @@ class NewgroundsExtractor(Extractor):
             "width"      : text.parse_int(full('width="', '"')),
             "height"     : text.parse_int(full('height="', '"')),
         }
-        data["index"] = text.parse_int(
-            data["url"].rpartition("/")[2].partition("_")[0])
+        index = data["url"].rpartition("/")[2].partition("_")[0]
+        data["index"] = text.parse_int(index)
+        data["_index"] = index
         return data
 
     @staticmethod
     def _extract_audio_data(extr, url):
+        index = url.split("/")[5]
         return {
             "title"      : text.unescape(extr('"og:title" content="', '"')),
             "description": text.unescape(extr(':description" content="', '"')),
             "date"       : text.parse_datetime(extr(
                 'itemprop="datePublished" content="', '"')),
             "url"        : extr('{"url":"', '"').replace("\\/", "/"),
-            "index"      : text.parse_int(url.split("/")[5]),
+            "index"      : text.parse_int(index),
+            "_index"     : index,
             "rating"     : "",
         }
 
@@ -148,6 +160,7 @@ class NewgroundsExtractor(Extractor):
 
         if src:
             src = src.replace("\\/", "/")
+            fallback = ()
             date = text.parse_datetime(extr(
                 'itemprop="datePublished" content="', '"'))
         else:
@@ -157,9 +170,9 @@ class NewgroundsExtractor(Extractor):
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": self.root,
             }
-            data = self.request(url, headers=headers).json()
-            key = max(data["sources"], key=lambda x: text.parse_int(x[:-1]))
-            src = data["sources"][key][0]["src"]
+            sources = self.request(url, headers=headers).json()["sources"]
+            src = sources["360p"][0]["src"].replace(".360p.", ".")
+            fallback = self._video_fallback(sources)
             date = text.parse_timestamp(src.rpartition("?")[2])
 
         return {
@@ -170,7 +183,16 @@ class NewgroundsExtractor(Extractor):
                 'itemprop="description" content="', '"')),
             "rating"     : extr('class="rated-', '"'),
             "index"      : text.parse_int(index),
+            "_index"     : index,
+            "_fallback"  : fallback,
         }
+
+    @staticmethod
+    def _video_fallback(sources):
+        sources = list(sources.items())
+        sources.sort(key=lambda src: text.parse_int(src[0][:-1]), reverse=True)
+        for src in sources:
+            yield src[1][0]["src"]
 
     def _pagination(self, kind):
         root = self.user_root
@@ -207,7 +229,7 @@ class NewgroundsImageExtractor(NewgroundsExtractor):
     """Extractor for a single image from newgrounds.com"""
     subcategory = "image"
     pattern = (r"(?:https?://)?(?:"
-               r"(?:www\.)?newgrounds\.com/art/view/([^/?&#]+)/[^/?&#]+"
+               r"(?:www\.)?newgrounds\.com/art/view/([^/?#]+)/[^/?#]+"
                r"|art\.ngfiles\.com/images/\d+/\d+_([^_]+)_([^.]+))")
     test = (
         ("https://www.newgrounds.com/art/view/tomfulp/ryu-is-hawt", {
@@ -233,6 +255,10 @@ class NewgroundsImageExtractor(NewgroundsExtractor):
         ("https://art.ngfiles.com/images/0/94_tomfulp_ryu-is-hawt.gif", {
             "url": "57f182bcbbf2612690c3a54f16ffa1da5105245e",
         }),
+        ("https://www.newgrounds.com/art/view/sailoryon/yon-dream-buster", {
+            "url": "84eec95e663041a80630df72719f231e157e5f5d",
+            "count": 2,
+        })
     )
 
     def __init__(self, match):
@@ -255,13 +281,14 @@ class NewgroundsMediaExtractor(NewgroundsExtractor):
                r"(/(?:portal/view|audio/listen)/\d+)")
     test = (
         ("https://www.newgrounds.com/portal/view/595355", {
-            "url": "7a0f653a0d5e6f427ea7bde1b8d5cbe287e5840e",
+            "pattern": r"https://uploads\.ungrounded\.net/alternate/564000"
+                       r"/564957_alternate_31\.mp4\?1359712249",
             "keyword": {
                 "artist"     : ["kickinthehead", "danpaladin", "tomfulp"],
                 "comment"    : "re:My fan trailer for Alien Hominid HD!",
                 "date"       : "dt:2013-02-01 09:50:49",
                 "favorites"  : int,
-                "filename"   : "564957_alternate_31.720p",
+                "filename"   : "564957_alternate_31",
                 "index"      : 595355,
                 "rating"     : "e",
                 "score"      : float,

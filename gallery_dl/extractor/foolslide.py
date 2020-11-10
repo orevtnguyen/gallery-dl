@@ -45,7 +45,7 @@ class FoolslideChapterExtractor(FoolslideBase, ChapterExtractor):
     """Base class for chapter extractors for FoOlSlide based sites"""
     directory_fmt = ("{category}", "{manga}", "{chapter_string}")
     archive_fmt = "{id}"
-    pattern_fmt = r"(/read/[^/?&#]+/[a-z-]+/\d+/\d+(?:/\d+)?)"
+    pattern_fmt = r"(/read/[^/?#]+/[a-z-]+/\d+/\d+(?:/\d+)?)"
     decode = "default"
 
     def items(self):
@@ -86,7 +86,7 @@ class FoolslideChapterExtractor(FoolslideBase, ChapterExtractor):
 
 class FoolslideMangaExtractor(FoolslideBase, MangaExtractor):
     """Base class for manga extractors for FoOlSlide based sites"""
-    pattern_fmt = r"(/series/[^/?&#]+)"
+    pattern_fmt = r"(/series/[^/?#]+)"
 
     def chapters(self, page):
         extr = text.extract_from(page)
@@ -173,8 +173,7 @@ EXTRACTORS = {
         ),
         "test-manga":
             ("https://sensescans.com/reader/series/yotsubato/", {
-                "url": "305e6eb6160e3bb90c3de39ff5fb7c971e052087",
-                "keyword": "562fb5a7362a4cb43d59d5c8a6ea8080fc65cf99",
+                "count": ">= 3",
             }),
     },
     "_ckey": "chapterclass",

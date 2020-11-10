@@ -13,6 +13,7 @@ import os
 import sys
 import json
 import time
+import random
 import shutil
 import string
 import _string
@@ -47,10 +48,20 @@ def bdecode(data, alphabet="0123456789"):
 
 
 def advance(iterable, num):
-    """"Advance the iterable by 'num' steps"""
+    """"Advance 'iterable' by 'num' steps"""
     iterator = iter(iterable)
     next(itertools.islice(iterator, num, num), None)
     return iterator
+
+
+def unique(iterable):
+    """Yield unique elements from 'iterable' while preserving order"""
+    seen = set()
+    add = seen.add
+    for element in iterable:
+        if element not in seen:
+            add(element)
+            yield element
 
 
 def raises(cls):
@@ -58,6 +69,10 @@ def raises(cls):
     def wrap(*args):
         raise cls(*args)
     return wrap
+
+
+def generate_csrf_token():
+    return random.getrandbits(128).to_bytes(16, "big").hex()
 
 
 def combine_dict(a, b):
@@ -490,6 +505,7 @@ class Formatter():
     - "u": calls str.upper
     - "c": calls str.capitalize
     - "C": calls string.capwords
+    - "t": calls str.strip
     - "U": calls urllib.parse.unquote
     - "S": calls util.to_string()
     - Example: {f!l} -> "example"; {f!u} -> "EXAMPLE"
@@ -520,6 +536,7 @@ class Formatter():
         "u": str.upper,
         "c": str.capitalize,
         "C": string.capwords,
+        "t": str.strip,
         "U": urllib.parse.unquote,
         "S": to_string,
         "s": str,
@@ -706,6 +723,12 @@ class PathFormat():
         directory_fmt = extractor.config("directory", extractor.directory_fmt)
         kwdefault = extractor.config("keywords-default")
 
+        extension_map = extractor.config("extension-map")
+        if extension_map is None:
+            # TODO: better default value in 1.16.0
+            extension_map = {}
+        self.extension_map = extension_map.get
+
         try:
             self.filename_formatter = Formatter(
                 filename_fmt, kwdefault).format_map
@@ -833,7 +856,9 @@ class PathFormat():
         """Set general filename data"""
         self.kwdict = kwdict
         self.temppath = self.prefix = ""
-        self.extension = kwdict["extension"]
+
+        ext = kwdict["extension"]
+        kwdict["extension"] = self.extension = self.extension_map(ext, ext)
 
         if self.extension:
             self.build_path()
@@ -842,6 +867,7 @@ class PathFormat():
 
     def set_extension(self, extension, real=True):
         """Set filename extension"""
+        extension = self.extension_map(extension, extension)
         if real:
             self.extension = extension
         self.kwdict["extension"] = self.prefix + extension

@@ -177,7 +177,7 @@ class FuraffinityExtractor(Extractor):
 class FuraffinityGalleryExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's gallery"""
     subcategory = "gallery"
-    pattern = BASE_PATTERN + r"/gallery/([^/?&#]+)"
+    pattern = BASE_PATTERN + r"/gallery/([^/?#]+)"
     test = ("https://www.furaffinity.net/gallery/mirlinthloth/", {
         "pattern": r"https://d\d?.facdn.net/art/mirlinthloth/\d+/\d+.\w+\.\w+",
         "range": "45-50",
@@ -189,7 +189,7 @@ class FuraffinityScrapsExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's scraps"""
     subcategory = "scraps"
     directory_fmt = ("{category}", "{user!l}", "Scraps")
-    pattern = BASE_PATTERN + r"/scraps/([^/?&#]+)"
+    pattern = BASE_PATTERN + r"/scraps/([^/?#]+)"
     test = ("https://www.furaffinity.net/scraps/mirlinthloth/", {
         "pattern": r"https://d\d?.facdn.net/art/[^/]+(/stories)?/\d+/\d+.\w+.",
         "count": ">= 3",
@@ -200,7 +200,7 @@ class FuraffinityFavoriteExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's favorites"""
     subcategory = "favorite"
     directory_fmt = ("{category}", "{user!l}", "Favorites")
-    pattern = BASE_PATTERN + r"/favorites/([^/?&#]+)"
+    pattern = BASE_PATTERN + r"/favorites/([^/?#]+)"
     test = ("https://www.furaffinity.net/favorites/mirlinthloth/", {
         "pattern": r"https://d\d?.facdn.net/art/[^/]+/\d+/\d+.\w+\.\w+",
         "range": "45-50",
@@ -236,7 +236,9 @@ class FuraffinityPostExtractor(FuraffinityExtractor):
     pattern = BASE_PATTERN + r"/(?:view|full)/(\d+)"
     test = (
         ("https://www.furaffinity.net/view/21835115/", {
-            "url": "d80254eb4fba654597b4df8320d55916e11ba375",
+            "pattern": r"https://d\d*\.facdn\.net/(download/)?art/mirlinthloth"
+                       r"/music/1488278723/1480267446.mirlinthloth_dj_fennmink"
+                       r"_-_bude_s_4_ever\.mp3",
             "keyword": {
                 "artist"     : "mirlinthloth",
                 "artist_url" : "mirlinthloth",
@@ -276,7 +278,7 @@ class FuraffinityUserExtractor(FuraffinityExtractor):
     """Extractor for furaffinity user profiles"""
     subcategory = "user"
     cookiedomain = None
-    pattern = BASE_PATTERN + r"/user/([^/?&#]+)"
+    pattern = BASE_PATTERN + r"/user/([^/?#]+)"
     test = (
         ("https://www.furaffinity.net/user/mirlinthloth/", {
             "pattern": r"/gallery/mirlinthloth/$",
@@ -300,7 +302,7 @@ class FuraffinityUserExtractor(FuraffinityExtractor):
 class FuraffinityFollowingExtractor(FuraffinityExtractor):
     """Extractor for a furaffinity user's watched users"""
     subcategory = "following"
-    pattern = BASE_PATTERN + "/watchlist/by/([^/?&#]+)"
+    pattern = BASE_PATTERN + "/watchlist/by/([^/?#]+)"
     test = ("https://www.furaffinity.net/watchlist/by/mirlinthloth/", {
         "pattern": FuraffinityUserExtractor.pattern,
         "range": "176-225",

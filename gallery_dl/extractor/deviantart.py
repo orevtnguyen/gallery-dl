@@ -165,11 +165,12 @@ class DeviantartExtractor(Extractor):
 
         # filename metadata
         alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
+        deviation["index_base36"] = util.bencode(deviation["index"], alphabet)
         sub = re.compile(r"\W").sub
         deviation["filename"] = "".join((
             sub("_", deviation["title"].lower()), "_by_",
             sub("_", deviation["author"]["username"].lower()), "-d",
-            util.bencode(deviation["index"], alphabet),
+            deviation["index_base36"],
         ))
 
     @staticmethod
@@ -262,9 +263,11 @@ class DeviantartExtractor(Extractor):
                 return folder
         raise exception.NotFoundError("folder")
 
-    def _folder_urls(self, folders, category):
-        url = "{}/{}/{}/0/".format(self.root, self.user, category)
-        return [(url + folder["name"], folder) for folder in folders]
+    def _folder_urls(self, folders, category, extractor):
+        base = "{}/{}/{}/0/".format(self.root, self.user, category)
+        for folder in folders:
+            folder["_extractor"] = extractor
+            yield base + folder["name"], folder
 
     def _update_content_default(self, deviation, content):
         public = "premium_folder_data" not in deviation
@@ -450,7 +453,7 @@ class DeviantartGalleryExtractor(DeviantartExtractor):
         if self.flat and not self.group:
             return self.api.gallery_all(self.user, self.offset)
         folders = self.api.gallery_folders(self.user)
-        return self._folder_urls(folders, "gallery")
+        return self._folder_urls(folders, "gallery", DeviantartFolderExtractor)
 
 
 class DeviantartFolderExtractor(DeviantartExtractor):
@@ -458,7 +461,7 @@ class DeviantartFolderExtractor(DeviantartExtractor):
     subcategory = "folder"
     directory_fmt = ("{category}", "{username}", "{folder[title]}")
     archive_fmt = "F_{folder[uuid]}_{index}.{extension}"
-    pattern = BASE_PATTERN + r"/gallery/(\d+)/([^/?&#]+)"
+    pattern = BASE_PATTERN + r"/gallery/(\d+)/([^/?#]+)"
     test = (
         # user
         ("https://www.deviantart.com/shimoda7/gallery/722019/Miscellaneous", {
@@ -589,7 +592,8 @@ class DeviantartFavoriteExtractor(DeviantartExtractor):
                 self.api.collections(self.user, folder["folderid"])
                 for folder in folders
             )
-        return self._folder_urls(folders, "favourites")
+        return self._folder_urls(
+            folders, "favourites", DeviantartCollectionExtractor)
 
 
 class DeviantartCollectionExtractor(DeviantartExtractor):
@@ -598,7 +602,7 @@ class DeviantartCollectionExtractor(DeviantartExtractor):
     directory_fmt = ("{category}", "{username}", "Favourites",
                      "{collection[title]}")
     archive_fmt = "C_{collection[uuid]}_{index}.{extension}"
-    pattern = BASE_PATTERN + r"/favourites/(\d+)/([^/?&#]+)"
+    pattern = BASE_PATTERN + r"/favourites/(\d+)/([^/?#]+)"
     test = (
         (("https://www.deviantart.com/pencilshadings"
           "/favourites/70595441/3D-Favorites"), {
@@ -668,8 +672,8 @@ class DeviantartPopularExtractor(DeviantartExtractor):
     archive_fmt = "P_{popular[range]}_{popular[search]}_{index}.{extension}"
     pattern = (r"(?:https?://)?www\.deviantart\.com/(?:"
                r"search(?:/deviations)?"
-               r"|(?:deviations/?)?\?order=(popular-[^/?&#]+)"
-               r"|((?:[\w-]+/)*)(popular-[^/?&#]+)"
+               r"|(?:deviations/?)?\?order=(popular-[^/?#]+)"
+               r"|((?:[\w-]+/)*)(popular-[^/?#]+)"
                r")/?(?:\?([^#]*))?")
     test = (
         ("https://www.deviantart.com/?order=popular-all-time", {
@@ -727,7 +731,7 @@ class DeviantartDeviationExtractor(DeviantartExtractor):
     """Extractor for single deviations"""
     subcategory = "deviation"
     archive_fmt = "{index}.{extension}"
-    pattern = BASE_PATTERN + r"/(art|journal)/(?:[^/?&#]+-)?(\d+)"
+    pattern = BASE_PATTERN + r"/(art|journal)/(?:[^/?#]+-)?(\d+)"
     test = (
         (("https://www.deviantart.com/shimoda7/art/For-the-sake-10073852"), {
             "options": (("original", 0),),
